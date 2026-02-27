@@ -121,6 +121,9 @@ class _LoginFormState extends State<LoginForm> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Logging in as $_email')),
       );
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const WelcomePage()),
+      );
     }
   }
 
@@ -203,9 +206,16 @@ class SignupForm extends StatefulWidget {
 
 class _SignupFormState extends State<SignupForm> {
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmController = TextEditingController();
   String _email = '';
-  String _password = '';
-  String _confirm = '';
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
 
   void _submit() {
     if (_formKey.currentState?.validate() ?? false) {
@@ -213,6 +223,9 @@ class _SignupFormState extends State<SignupForm> {
       // perform signup action
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Signing up as $_email')),
+      );
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const WelcomePage()),
       );
     }
   }
@@ -251,6 +264,7 @@ class _SignupFormState extends State<SignupForm> {
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
+                  controller: _passwordController,
                   decoration: const InputDecoration(labelText: 'Password'),
                   obscureText: true,
                   validator: (value) {
@@ -262,22 +276,21 @@ class _SignupFormState extends State<SignupForm> {
                     }
                     return null;
                   },
-                  onSaved: (value) => _password = value ?? '',
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
+                  controller: _confirmController,
                   decoration: const InputDecoration(labelText: 'Confirm Password'),
                   obscureText: true,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please confirm your password';
                     }
-                    if (value != _password) {
+                    if (value != _passwordController.text) {
                       return 'Passwords do not match';
                     }
                     return null;
                   },
-                  onSaved: (value) => _confirm = value ?? '',
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
@@ -301,4 +314,23 @@ class _SignupFormState extends State<SignupForm> {
     );
   }
 }
- 
+
+class WelcomePage extends StatelessWidget {
+  const WelcomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Welcome Home'),
+        automaticallyImplyLeading: false,
+      ),
+      body: const Center(
+        child: Text(
+          'Welcome Home!',
+          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+}
