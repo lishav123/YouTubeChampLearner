@@ -315,8 +315,53 @@ class _SignupFormState extends State<SignupForm> {
   }
 }
 
-class WelcomePage extends StatelessWidget {
+class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
+
+  @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+  final TextEditingController _inputController = TextEditingController();
+  final List<String> _todos = [];
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    super.dispose();
+  }
+
+  void _openAddDialog() {
+    _inputController.clear();
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Todo'),
+        content: TextField(
+          controller: _inputController,
+          decoration: const InputDecoration(hintText: 'Enter todo name'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final text = _inputController.text.trim();
+              if (text.isNotEmpty) {
+                setState(() => _todos.add(text));
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -325,11 +370,42 @@ class WelcomePage extends StatelessWidget {
         title: const Text('Welcome Home'),
         automaticallyImplyLeading: false,
       ),
-      body: const Center(
-        child: Text(
-          'Welcome Home!',
-          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-        ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: _todos.isEmpty
+            ? const Center(
+                child: Text(
+                  'No todos yet. Tap + to add one.',
+                  style: TextStyle(fontSize: 18),
+                ),
+              )
+            : ListView.separated(
+                itemCount: _todos.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final item = _todos[index];
+                  return Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListTile(
+                      title: Text(item),
+                      leading: const Icon(Icons.check_box_outline_blank),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () {
+                          setState(() => _todos.removeAt(index));
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _openAddDialog,
+        child: const Icon(Icons.add),
       ),
     );
   }
