@@ -7,11 +7,17 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
   final Duration startTime;
+  final Duration endTime;
+  final VoidCallback? onModuleComplete;
+
   const VideoPlayerWidget({
     super.key,
     required this.videoUrl,
     this.startTime = Duration.zero,
+    this.endTime = Duration.zero,
+    this.onModuleComplete,
   });
+
   @override
   State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
 }
@@ -22,6 +28,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   int _serverPort = 8765;
   String _currentVideoId = '';
   int _currentStartSeconds = 0;
+  bool _moduleCompleteTriggered = false;
 
   String _getVideoId(String url) {
     try {
@@ -52,28 +59,44 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 </style>
 </head>
 <body>
-<iframe
-  src="https://www.youtube-nocookie.com/embed/$videoId?start=$startSeconds&autoplay=1&controls=1&rel=0&playsinline=1"
+<iframe id="yt"
+  src="https://www.youtube-nocookie.com/embed/$videoId?start=$startSeconds&autoplay=1&controls=1&rel=0&playsinline=1&enablejsapi=1"
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
   allowfullscreen>
 </iframe>
+<script>
+  setInterval(function() {
+    try {
+      var iframe = document.getElementById('yt');
+      iframe.contentWindow.postMessage(JSON.stringify({event: 'listening'}), '*');
+    } catch(e) {}
+  }, 500);
+
+  window.addEventListener('message', function(event) {
+    try {
+      var data = JSON.parse(event.data);
+      if (data.info && data.info.currentTime !== undefined) {
+        window.flutter_inappwebview.callHandler('onTimeUpdate', data.info.currentTime);
+      }
+    } catch(e) {}
+  });
+</script>
 </body>
 </html>''';
   }
 
   Future<void> _startServer() async {
-    final handler = (shelf.Request request) {
+    shelf.Response handler(shelf.Request request) {
       final html = _buildEmbedHtml(_currentVideoId, _currentStartSeconds);
       return shelf.Response.ok(
         html,
         headers: {'Content-Type': 'text/html'},
       );
-    };
+    }
 
     try {
       _server = await shelf_io.serve(handler, '127.0.0.1', _serverPort);
     } catch (e) {
-      // Port taken, try next one
       _serverPort = 8766;
       _server = await shelf_io.serve(handler, '127.0.0.1', _serverPort);
     }
@@ -95,12 +118,14 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         oldWidget.videoUrl != widget.videoUrl) {
       _currentVideoId = _getVideoId(widget.videoUrl);
       _currentStartSeconds = widget.startTime.inSeconds;
+      _moduleCompleteTriggered = false;
       _loadVideo();
     }
   }
 
   void _loadVideo() {
     if (_webViewController == null) return;
+    _moduleCompleteTriggered = false;
     _webViewController!.loadUrl(
       urlRequest: URLRequest(
         url: WebUri('http://127.0.0.1:$_serverPort/'),
@@ -131,6 +156,26 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       ),
       onWebViewCreated: (controller) {
         _webViewController = controller;
+        controller.addJavaScriptHandler(
+          handlerName: 'onTimeUpdate',
+          callback: (args) {
+            if (args.isEmpty) return;
+            final currentTime = double.tryParse(args[0].toString()) ?? -1;
+            if (currentTime < 0) return;
+            if (widget.endTime == Duration.zero) return;
+
+            final endSeconds = widget.endTime.inSeconds.toDouble();
+            if (currentTime >= endSeconds && !_moduleCompleteTriggered) {
+              _moduleCompleteTriggered = true;
+              _webViewController?.evaluateJavascript(source: '''
+                try {
+                  document.getElementById('yt').contentDocument.querySelector('video').pause();
+                } catch(e) {}
+              ''');
+              widget.onModuleComplete?.call();
+            }
+          },
+        );
       },
       onLoadStop: (controller, url) {
         debugPrint('Loaded: $url');
