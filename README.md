@@ -1,3 +1,3 @@
 # yt_champ_learner
 
-A new Flutter project.
+This course is for YT learners
